@@ -6,10 +6,11 @@ Parameters:
     EnvironmentName:
         Description: An environment name that will be prefixed to resource names
         Type: String
+
 Resources:
   # instace profile contains the IAM Role name(s) that we want to associate to our auto scaling EC2 Servers
   # never give too much permissions to your EC2 instances! if they get hacked, the permissions get hacked also!
-  # in this example, I create a Role called UdacityS3ReadOnlyC2 and just give it a policy of S3 Read-Only Access        
+  # in this example, I create a Role called UdacityS3ReadOnlyC2 and just give it a policy of S3 Read-Only Access
     UdacityS3ReadOnlyEC2:
         Type: AWS::IAM::Role
         Properties:
@@ -129,18 +130,51 @@ Resources:
           UnhealthyThresholdCount: 5
           VpcId: 
             Fn::ImportValue:
-              Fn::Sub: "${EnvironmentName}-VPCID"
+              !Sub "${EnvironmentName}-VPCID"
+    
     WebAppGroup:
-      Type: AWS::AutoScaling::AutoScalingGroup
-      Properties:
-        VPCZoneIdentifier:
-        - Fn::ImportValue: !Sub "${EnvironmentName}-PRIV-NETS"
-        LaunchConfigurationName:
-          Ref: WebAppLaunchConfig
-        MinSize: '4'
-        MaxSize: '6'
-        TargetGroupARNs:
-        - Ref: WebAppTargetGroup          
+        Type: AWS::AutoScaling::AutoScalingGroup
+        Properties:
+          VPCZoneIdentifier:
+          - Fn::ImportValue: 
+              !Sub "${EnvironmentName}-PRIV-NETS"
+          LaunchConfigurationName:
+            Ref: WebAppLaunchConfig
+          MinSize: '4'
+          MaxSize: '6'
+          TargetGroupARNs:
+          - Ref: WebAppTargetGroup
+    WebAppLB:
+        Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+        Properties:
+          Subnets:
+          - Fn::ImportValue: !Sub "${EnvironmentName}-PUB1-SN"
+          - Fn::ImportValue: !Sub "${EnvironmentName}-PUB2-SN"
+          SecurityGroups:
+          - Ref: LBSecGroup
+    Listener:
+        Type: AWS::ElasticLoadBalancingV2::Listener
+        Properties:
+          DefaultActions:
+          - Type: forward
+            TargetGroupArn:
+              Ref: WebAppTargetGroup
+          LoadBalancerArn:
+            Ref: WebAppLB
+          Port: '80'
+          Protocol: HTTP
+    ALBListenerRule:
+        Type: AWS::ElasticLoadBalancingV2::ListenerRule
+        Properties:
+          Actions:
+          - Type: forward
+            TargetGroupArn: !Ref 'WebAppTargetGroup'
+          Conditions:
+          - Field: path-pattern
+            Values: [/]
+          ListenerArn: !Ref 'Listener'
+          Priority: 1
+    
                   
 
 
